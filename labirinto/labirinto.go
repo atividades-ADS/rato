@@ -104,7 +104,12 @@ func (labirinto *Labirinto) PosicaoValida(posicao Posicao) bool {
 }
 
 func (labirinto *Labirinto) MarcarVisitado(posicao Posicao) {
-	labirinto.Mapa[posicao.Y][posicao.X].visitado = true
-	labirinto.Mapa[posicao.Y][posicao.X].Valor = '.'
 
+	celula := &labirinto.Mapa[posicao.Y][posicao.X]
+
+	celula.visitado = true
+
+	if celula.Valor != 'M' && celula.Valor != 'E' {
+		celula.Valor = '.'
+	}
 }
