@@ -1,6 +1,7 @@
 package animacao
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	_ "image/png"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -21,11 +23,12 @@ type Game struct {
 	Rato  *rato.RatoType
 	Pilha *pilha.Pilha[labirinto.Posicao]
 
-	RatoImagem    *ebiten.Image
-	ParedeImagem  *ebiten.Image
-	CaminhoImagem *ebiten.Image
-	EntradaImagem *ebiten.Image
-	SaidaImagem   *ebiten.Image
+	RatoImagem     *ebiten.Image
+	ParedeImagem   *ebiten.Image
+	CaminhoImagem  *ebiten.Image
+	VisitadoImagem *ebiten.Image
+	EntradaImagem  *ebiten.Image
+	SaidaImagem    *ebiten.Image
 
 	ultimoPasso time.Time
 	intervalo   time.Duration
@@ -63,8 +66,11 @@ func NewGame(
 	if err != nil {
 		return nil, err
 	}
-
 	caminho, err := carregarImagem("animacao/labirinto/caminho.png")
+	if err != nil {
+		return nil, err
+	}
+	visitado, err := carregarImagem("animacao/labirinto/visitado.png")
 	if err != nil {
 		return nil, err
 	}
@@ -82,16 +88,17 @@ func NewGame(
 	p.Push(r.Posicao)
 
 	return &Game{
-		Lab:           lab,
-		Rato:          r,
-		Pilha:         p,
-		RatoImagem:    img,
-		ParedeImagem:  parede,
-		CaminhoImagem: caminho,
-		EntradaImagem: entrada,
-		SaidaImagem:   saida,
-		ultimoPasso:   time.Now(),
-		intervalo:     300 * time.Millisecond,
+		Lab:            lab,
+		Rato:           r,
+		Pilha:          p,
+		RatoImagem:     img,
+		ParedeImagem:   parede,
+		CaminhoImagem:  caminho,
+		VisitadoImagem: visitado,
+		EntradaImagem:  entrada,
+		SaidaImagem:    saida,
+		ultimoPasso:    time.Now(),
+		intervalo:      300 * time.Millisecond,
 	}, nil
 }
 
@@ -233,6 +240,7 @@ func (g *Game) Update() error {
 }
 
 const tamanhoCelula = 140
+const painelLargura = 300
 
 func desenharCelula(
 	screen *ebiten.Image,
@@ -256,8 +264,8 @@ func (g *Game) desenharRato(screen *ebiten.Image) {
 	op.Filter = ebiten.FilterLinear
 
 	op.GeoM.Scale(
-		-1,
-		1,
+		-0.7,
+		0.7,
 	)
 
 	op.GeoM.Translate(
@@ -266,6 +274,84 @@ func (g *Game) desenharRato(screen *ebiten.Image) {
 	)
 
 	screen.DrawImage(g.RatoImagem, op)
+}
+
+func (g *Game) desenharPilha(screen *ebiten.Image) {
+
+	larguraLabirinto := len(g.Lab.Mapa[0]) * tamanhoCelula
+
+	xPainel := larguraLabirinto
+
+	// Fundo do painel
+	vector.DrawFilledRect(
+		screen,
+		float32(xPainel),
+		0,
+		painelLargura,
+		float32(len(g.Lab.Mapa)*tamanhoCelula),
+		color.RGBA{25, 25, 30, 255},
+		false,
+	)
+
+	// Título
+	ebitenutil.DebugPrintAt(
+		screen,
+		fmt.Sprintf("PILHA (%d)", g.Pilha.Size()),
+		xPainel+20,
+		20,
+	)
+
+	itens := g.Pilha.Items()
+
+	// Espaçamento entre os elementos
+	y := 60
+	alturaItem := 50
+
+	// Mostra primeiro o topo da pilha
+	for i := len(itens) - 1; i >= 0; i-- {
+
+		// Se o painel ficar cheio, paramos de desenhar
+		if y+alturaItem > len(g.Lab.Mapa)*tamanhoCelula-20 {
+			break
+		}
+
+		// O topo recebe uma cor diferente
+		if i == len(itens)-1 {
+
+			vector.DrawFilledRect(
+				screen,
+				float32(xPainel+20),
+				float32(y),
+				260,
+				float32(alturaItem),
+				color.RGBA{100, 150, 220, 255},
+				false,
+			)
+
+		} else {
+
+			vector.DrawFilledRect(
+				screen,
+				float32(xPainel+20),
+				float32(y),
+				260,
+				float32(alturaItem),
+				color.RGBA{60, 60, 70, 255},
+				false,
+			)
+		}
+
+		texto := fmt.Sprintf("(%d, %d)", itens[i].X, itens[i].Y)
+
+		ebitenutil.DebugPrintAt(
+			screen,
+			texto,
+			xPainel+35,
+			y+17,
+		)
+
+		y += alturaItem + 10
+	}
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -287,11 +373,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				)
 
 			case '0':
-				desenharCelula(
+				desenharImagemCelula(
 					screen,
+					g.CaminhoImagem,
 					x,
 					y,
-					color.RGBA{232, 232, 232, 255},
 				)
 
 			case 'M':
@@ -313,7 +399,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			case '.':
 				desenharImagemCelula(
 					screen,
-					g.CaminhoImagem,
+					g.VisitadoImagem,
 					x,
 					y,
 				)
@@ -322,6 +408,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	g.desenharRato(screen)
+	g.desenharPilha(screen)
 }
 
 func (g *Game) Layout(
@@ -331,6 +418,8 @@ func (g *Game) Layout(
 
 	largura := len(g.Lab.Mapa[0]) * tamanhoCelula
 	altura := len(g.Lab.Mapa) * tamanhoCelula
+
+	largura += painelLargura
 
 	return largura, altura
 }

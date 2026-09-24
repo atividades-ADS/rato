@@ -66,3 +66,7 @@ func (f *Pilha[T]) Top() (T, bool) {
 	}
 	return f.top, true
 }
+
+func (f *Pilha[T]) Items() []T {
+	return append([]T(nil), f.items...)
+}
